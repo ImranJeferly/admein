@@ -7,8 +7,11 @@ import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class UpdateService {
-  // GitHub API URL for your repository - use commits instead of releases
-  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/commits/main';
+  // Laravel backend API URL for APK version checking
+  static const String _updateApiUrl = 'https://connect.admein.az/api/app-version';
+  
+  // GitHub API URL for APK releases
+  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/releases/latest';
   
   /// Check for app updates on startup
   static Future<void> checkForUpdates(BuildContext context) async {
@@ -30,20 +33,30 @@ class UpdateService {
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
-        final commitData = jsonDecode(response.body);
-        final latestCommit = commitData['sha'] as String;
-        final commitMessage = commitData['commit']['message'] as String;
+        final releaseData = jsonDecode(response.body);
+        final latestVersion = releaseData['tag_name'] as String;
         
-        print('🔄 [UPDATE] Latest commit: ${latestCommit.substring(0, 8)}');
-        print('🔄 [UPDATE] Commit message: $commitMessage');
+        print('🔄 [UPDATE] Latest version: $latestVersion');
         
-        // For now, just show that we detected a new commit
-        if (commitMessage.toLowerCase().contains('test')) {
-          print('🔄 [UPDATE] Test update available!');
+        if (_isNewerVersion(currentVersion, latestVersion)) {
+          print('🔄 [UPDATE] Update available: $currentVersion -> $latestVersion');
           
-          // Instead of trying to download, just show a notification
-          if (context.mounted) {
-            _showTestUpdateDialog(context, currentVersion, latestCommit.substring(0, 8));
+          // Get APK download URL
+          final assets = releaseData['assets'] as List;
+          String? apkDownloadUrl;
+          
+          for (final asset in assets) {
+            final fileName = asset['name'] as String;
+            if (fileName.endsWith('.apk')) {
+              apkDownloadUrl = asset['browser_download_url'] as String;
+              break;
+            }
+          }
+          
+          if (apkDownloadUrl != null && context.mounted) {
+            _showUpdateDialog(context, currentVersion, latestVersion, apkDownloadUrl);
+          } else {
+            print('⚠️ [UPDATE] No APK found in release assets');
           }
         } else {
           print('✅ [UPDATE] App is up to date');
