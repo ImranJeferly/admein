@@ -7,8 +7,8 @@ import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class UpdateService {
-  // GitHub API URL for your repository
-  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/releases/latest';
+  // GitHub API URL for your repository - use commits instead of releases
+  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/commits/main';
   
   /// Check for app updates on startup
   static Future<void> checkForUpdates(BuildContext context) async {
@@ -30,24 +30,19 @@ class UpdateService {
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
-        final releaseData = jsonDecode(response.body);
-        final latestVersion = releaseData['tag_name'] as String;
+        final commitData = jsonDecode(response.body);
+        final latestCommit = commitData['sha'] as String;
+        final commitMessage = commitData['commit']['message'] as String;
         
-        print('🔄 [UPDATE] Latest version: $latestVersion');
+        print('🔄 [UPDATE] Latest commit: ${latestCommit.substring(0, 8)}');
+        print('🔄 [UPDATE] Commit message: $commitMessage');
         
-        if (_isNewerVersion(currentVersion, latestVersion)) {
-          print('🔄 [UPDATE] Update available: $currentVersion -> $latestVersion');
+        // For now, just show that we detected a new commit
+        if (commitMessage.toLowerCase().contains('test')) {
+          print('🔄 [UPDATE] Test update available!');
           
-          // Get APK download URL
-          final assets = releaseData['assets'] as List;
-          if (assets.isNotEmpty) {
-            final downloadUrl = assets[0]['browser_download_url'] as String;
-            
-            if (context.mounted) {
-              _showUpdateDialog(context, currentVersion, latestVersion, downloadUrl);
-            }
-          } else {
-            print('⚠️ [UPDATE] No APK assets found in release');
+          if (context.mounted) {
+            _showUpdateDialog(context, currentVersion, latestCommit.substring(0, 8), '');
           }
         } else {
           print('✅ [UPDATE] App is up to date');
