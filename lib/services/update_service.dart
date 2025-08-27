@@ -13,15 +13,16 @@ class UpdateService {
   // GitHub API URL for APK releases
   static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/releases/latest';
   
-  /// Check for app updates on startup
+  /// Check for app updates on startup - optimized for taxi fleet
   static Future<void> checkForUpdates(BuildContext context) async {
     try {
-      print('🔄 [UPDATE] Checking for app updates...');
+      print('🔄 [FLEET-UPDATE] Checking for fleet updates...');
+      print('🚕 [FLEET-UPDATE] Tablet ID: ${await _getDeviceId()}');
       
       // Get current app version
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
-      print('🔄 [UPDATE] Current app version: $currentVersion');
+      print('🔄 [FLEET-UPDATE] Current version: $currentVersion');
       
       // Call GitHub API
       final response = await http.get(
@@ -39,7 +40,7 @@ class UpdateService {
         print('🔄 [UPDATE] Latest version: $latestVersion');
         
         if (_isNewerVersion(currentVersion, latestVersion)) {
-          print('🔄 [UPDATE] Update available: $currentVersion -> $latestVersion');
+          print('🚕 [FLEET-UPDATE] FLEET UPDATE AVAILABLE: $currentVersion -> $latestVersion');
           
           // Get APK download URL
           final assets = releaseData['assets'] as List;
@@ -54,20 +55,32 @@ class UpdateService {
           }
           
           if (apkDownloadUrl != null && context.mounted) {
-            _showUpdateDialog(context, currentVersion, latestVersion, apkDownloadUrl);
+            // For fleet deployment - auto-install without user confirmation
+            print('🚕 [FLEET-UPDATE] Starting automatic fleet update...');
+            _showFleetUpdateDialog(context, currentVersion, latestVersion, apkDownloadUrl);
           } else {
-            print('⚠️ [UPDATE] No APK found in release assets');
+            print('⚠️ [FLEET-UPDATE] No APK found in release assets');
           }
         } else {
-          print('✅ [UPDATE] App is up to date');
+          print('✅ [FLEET-UPDATE] Fleet is up to date');
         }
       } else {
         print('⚠️ [UPDATE] GitHub API returned status: ${response.statusCode}');
       }
       
     } catch (e) {
-      print('❌ [UPDATE] Error checking for updates: $e');
-      // Continue app normally on error - don't block startup
+      print('❌ [FLEET-UPDATE] Error checking for fleet updates: $e');
+      // Continue app normally on error - don't block taxi operations
+    }
+  }
+  
+  /// Get device identifier for fleet tracking
+  static Future<String> _getDeviceId() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      return 'TAXI_${packageInfo.packageName}_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    } catch (e) {
+      return 'TAXI_UNKNOWN_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
     }
   }
   
@@ -96,6 +109,94 @@ class UpdateService {
     return false; // Versions are equal
   }
   
+  /// Show fleet update dialog - automatic update for taxi tablets
+  static void _showFleetUpdateDialog(BuildContext context, String currentVersion, String latestVersion, String downloadUrl) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Cannot be dismissed - fleet update is mandatory
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2a2e6a),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.local_taxi, color: Color(0xFFffc107), size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Fleet Update Available',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '🚕 Taxi Fleet Management System',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Current: $currentVersion → New: $latestVersion',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'This update will be installed automatically to keep all taxi tablets synchronized with the latest features and fixes.',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _downloadAndInstallUpdate(context, downloadUrl, latestVersion);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFffc107),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text(
+                'Update Fleet 🚕',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF2a2e6a),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// Show test update notification (no actual download)
   static void _showTestUpdateDialog(BuildContext context, String currentVersion, String latestCommit) {
     showDialog(
