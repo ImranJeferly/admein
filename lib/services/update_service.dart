@@ -41,8 +41,9 @@ class UpdateService {
         if (commitMessage.toLowerCase().contains('test')) {
           print('🔄 [UPDATE] Test update available!');
           
+          // Instead of trying to download, just show a notification
           if (context.mounted) {
-            _showUpdateDialog(context, currentVersion, latestCommit.substring(0, 8), '');
+            _showTestUpdateDialog(context, currentVersion, latestCommit.substring(0, 8));
           }
         } else {
           print('✅ [UPDATE] App is up to date');
@@ -82,6 +83,103 @@ class UpdateService {
     return false; // Versions are equal
   }
   
+  /// Show test update notification (no actual download)
+  static void _showTestUpdateDialog(BuildContext context, String currentVersion, String latestCommit) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2a2e6a),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.system_update, color: Color(0xFFffc107), size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Test Update Detected!',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Auto-update system is working! 🎉',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Latest commit: $latestCommit',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Current version: $currentVersion',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'In a real scenario, this would download and install the update automatically.',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFffc107),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text(
+                'Awesome! 🚀',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF2a2e6a),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// Show update dialog to user
   static void _showUpdateDialog(BuildContext context, String currentVersion, String latestVersion, String downloadUrl) {
     showDialog(
