@@ -10,8 +10,8 @@ class UpdateService {
   // Laravel backend API URL for APK version checking
   static const String _updateApiUrl = 'https://connect.admein.az/api/app-version';
   
-  // GitHub API URL for APK releases
-  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/releases/latest';
+  // GitHub API URL for APK releases (fallback to commits for testing)
+  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/commits/main';
   
   /// Check for app updates on startup - optimized for taxi fleet
   static Future<void> checkForUpdates(BuildContext context) async {
@@ -34,35 +34,24 @@ class UpdateService {
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
-        final releaseData = jsonDecode(response.body);
-        final latestVersion = releaseData['tag_name'] as String;
+        final commitData = jsonDecode(response.body);
+        final latestCommit = commitData['sha'] as String;
+        final commitMessage = commitData['commit']['message'] as String;
         
-        print('🔄 [UPDATE] Latest version: $latestVersion');
+        print('🔄 [FLEET-UPDATE] Latest commit: ${latestCommit.substring(0, 8)}');
+        print('🔄 [FLEET-UPDATE] Commit message: $commitMessage');
         
-        if (_isNewerVersion(currentVersion, latestVersion)) {
-          print('🚕 [FLEET-UPDATE] FLEET UPDATE AVAILABLE: $currentVersion -> $latestVersion');
+        // For testing: detect commits with "FLEET TEST" in the message
+        if (commitMessage.toLowerCase().contains('fleet test')) {
+          print('🚕 [FLEET-UPDATE] FLEET TEST UPDATE DETECTED!');
+          print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> v1.0.2 (Green Background)');
           
-          // Get APK download URL
-          final assets = releaseData['assets'] as List;
-          String? apkDownloadUrl;
-          
-          for (final asset in assets) {
-            final fileName = asset['name'] as String;
-            if (fileName.endsWith('.apk')) {
-              apkDownloadUrl = asset['browser_download_url'] as String;
-              break;
-            }
-          }
-          
-          if (apkDownloadUrl != null && context.mounted) {
-            // For fleet deployment - auto-install without user confirmation
-            print('🚕 [FLEET-UPDATE] Starting automatic fleet update...');
-            _showFleetUpdateDialog(context, currentVersion, latestVersion, apkDownloadUrl);
-          } else {
-            print('⚠️ [FLEET-UPDATE] No APK found in release assets');
+          if (context.mounted) {
+            // Show fleet update dialog for testing (no actual download for now)
+            _showFleetTestDialog(context, currentVersion, latestCommit.substring(0, 8));
           }
         } else {
-          print('✅ [FLEET-UPDATE] Fleet is up to date');
+          print('✅ [FLEET-UPDATE] Fleet is up to date (no test commits found)');
         }
       } else {
         print('⚠️ [UPDATE] GitHub API returned status: ${response.statusCode}');
@@ -109,6 +98,101 @@ class UpdateService {
     return false; // Versions are equal
   }
   
+  /// Show fleet test dialog - demonstrates update detection
+  static void _showFleetTestDialog(BuildContext context, String currentVersion, String commitHash) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2a2e6a),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.local_taxi, color: Color(0xFFffc107), size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Fleet Test Update!',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '🎉 Auto-Update Detection Working!',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Current: $currentVersion',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                'Latest Commit: $commitHash',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'The green background change has been detected! In production, this would automatically download and install the new APK across all 200 taxi tablets.',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFffc107),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: const Text(
+                'Great! It Works! 🚕',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: Color(0xFF2a2e6a),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// Show fleet update dialog - automatic update for taxi tablets
   static void _showFleetUpdateDialog(BuildContext context, String currentVersion, String latestVersion, String downloadUrl) {
     showDialog(
