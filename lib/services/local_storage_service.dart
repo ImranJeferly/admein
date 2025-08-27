@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import '../models/ad_model.dart';
 import '../models/performance_model.dart';
@@ -10,6 +12,12 @@ class LocalStorageService {
   static SharedPreferences? _prefs;
 
   static Future<void> initialize() async {
+    // Initialize database factory for Windows/Linux/macOS
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      sqfliteFfiInit();
+      databaseFactory = databaseFactoryFfi;
+    }
+    
     _prefs = await SharedPreferences.getInstance();
     _database = await _initDatabase();
   }

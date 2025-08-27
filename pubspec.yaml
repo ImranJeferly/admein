@@ -41,10 +41,11 @@ dependencies:
   # Local storage
   shared_preferences: ^2.2.2
   sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0+2
   path: ^1.8.3
   
   # Video player
-  video_player: ^2.8.1
+  video_player: ^2.9.2
   
   # QR code
   qr_flutter: ^4.1.0
