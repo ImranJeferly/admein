@@ -60,7 +60,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           child: Transform.scale(
             scale: 0.9 + (0.1 * value),
             child: Scaffold(
-              backgroundColor: const Color(0xFF2a2e6a), // New background color
+              backgroundColor: Colors.red, // Red background for auto-update test
               body: GestureDetector(
         onTap: () {
           context.read<AppStateService>().skipWelcome();
@@ -73,9 +73,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF2a2e6a), // Background blue
-                Color(0xFF2a2e6a), // Background blue
-                Color(0xFF2a2e6a), // Background blue
+                Colors.red, // Red background for test
+                Colors.redAccent, // Red accent for gradient
+                Colors.red, // Red background for test
               ],
             ),
           ),
