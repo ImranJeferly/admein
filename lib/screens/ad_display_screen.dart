@@ -256,7 +256,7 @@ class _AdDisplayScreenState extends State<AdDisplayScreen> {
             const SizedBox(height: 16),
             Text(
               'Loading video...\n${ad.url}',
-              style: const TextStyle(fontFamily: 'Poppins', color: Colors.white70),
+              style: const TextStyle(fontFamily: 'Poppins', color: Colors.blue),
               textAlign: TextAlign.center,
             ),
           ],
