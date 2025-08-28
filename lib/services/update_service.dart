@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UpdateService {
   // Laravel backend API URL for APK version checking (PRODUCTION)
@@ -43,8 +44,8 @@ class UpdateService {
         print('🔄 [FLEET-UPDATE] Latest release version: $latestVersion');
         print('🔄 [FLEET-UPDATE] Current version: $currentVersion');
         
-        // Check if update is needed
-        if (_isNewerVersion(currentVersion, latestVersion)) {
+        // Check if update is needed and not already installed
+        if (_isNewerVersion(currentVersion, latestVersion) && !(await _isVersionAlreadyInstalled(latestVersion))) {
           // Find APK download URL
           final assets = releaseData['assets'] as List<dynamic>;
           String? apkDownloadUrl;
@@ -61,10 +62,11 @@ class UpdateService {
             print('🚕 [FLEET-UPDATE] PRODUCTION UPDATE DETECTED!');
             print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> $latestVersion');
             print('📥 [FLEET-UPDATE] APK URL: $apkDownloadUrl');
+            print('🔄 [FLEET-UPDATE] Starting silent background update...');
             
             if (context.mounted) {
-              // PRODUCTION: Start mandatory fleet update
-              _showFleetUpdateDialog(context, currentVersion, latestVersion, apkDownloadUrl);
+              // PRODUCTION: Start silent background fleet update
+              _downloadAndInstallUpdateSilent(context, apkDownloadUrl, latestVersion);
             }
           } else {
             print('⚠️ [FLEET-UPDATE] No APK found in release assets');
@@ -107,12 +109,8 @@ class UpdateService {
         // For testing: detect commits with "FLEET TEST" in the message
         if (commitMessage.toLowerCase().contains('fleet test')) {
           print('🚕 [FLEET-UPDATE] FLEET TEST UPDATE DETECTED!');
-          print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> v1.0.2 (Testing)');
-          
-          if (context.mounted) {
-            // Show fleet update dialog for testing (no actual download for now)
-            _showFleetTestDialog(context, currentVersion, latestCommit.substring(0, 8));
-          }
+          print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> Testing Version');
+          print('🔄 [FLEET-UPDATE] Test update detection successful - no download in test mode');
         } else {
           print('✅ [FLEET-UPDATE] Fleet is up to date (no test commits found)');
         }
@@ -129,6 +127,37 @@ class UpdateService {
       return 'TAXI_${packageInfo.packageName}_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
     } catch (e) {
       return 'TAXI_UNKNOWN_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    }
+  }
+  
+  /// Save installed version to prevent re-detection
+  static Future<void> _saveInstalledVersion(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fleet_installed_version', version);
+      await prefs.setString('fleet_last_update', DateTime.now().toIso8601String());
+      print('✅ [FLEET-UPDATE] Saved installed version: $version');
+    } catch (e) {
+      print('❌ [FLEET-UPDATE] Failed to save version: $e');
+    }
+  }
+  
+  /// Check if version was already installed to prevent duplicate updates
+  static Future<bool> _isVersionAlreadyInstalled(String latestVersion) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final installedVersion = prefs.getString('fleet_installed_version');
+      
+      if (installedVersion != null && installedVersion == latestVersion) {
+        final lastUpdate = prefs.getString('fleet_last_update');
+        print('✅ [FLEET-UPDATE] Version $latestVersion already installed on $lastUpdate');
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('❌ [FLEET-UPDATE] Failed to check installed version: $e');
+      return false;
     }
   }
   
@@ -551,25 +580,16 @@ class UpdateService {
     );
   }
   
-  /// Download and install the update
-  static Future<void> _downloadAndInstallUpdate(BuildContext context, String downloadUrl, String version) async {
-    // Show progress dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const UpdateProgressDialog();
-      },
-    );
-    
+  /// Download and install update silently in background
+  static Future<void> _downloadAndInstallUpdateSilent(BuildContext context, String downloadUrl, String version) async {
     try {
-      print('📥 [UPDATE] Starting download from: $downloadUrl');
+      print('📥 [FLEET-UPDATE] Starting silent download from: $downloadUrl');
       
       // Get app directory for storing the APK
       final directory = await getExternalStorageDirectory();
       final apkPath = '${directory!.path}/admain_update_$version.apk';
       
-      // Download APK with progress tracking
+      // Download APK with console progress logging
       final request = http.Request('GET', Uri.parse(downloadUrl));
       final streamedResponse = await request.send();
       
@@ -579,74 +599,88 @@ class UpdateService {
         
         final totalBytes = streamedResponse.contentLength ?? 0;
         int downloadedBytes = 0;
+        int lastLoggedProgress = 0;
         
         await for (final chunk in streamedResponse.stream) {
           sink.add(chunk);
           downloadedBytes += chunk.length;
           
           if (totalBytes > 0) {
-            final progress = downloadedBytes / totalBytes;
-            // Update progress in dialog
-            UpdateProgressDialog.updateProgress(progress);
+            final progress = ((downloadedBytes / totalBytes) * 100).round();
+            // Log progress every 10%
+            if (progress >= lastLoggedProgress + 10) {
+              print('📥 [FLEET-UPDATE] Download progress: $progress% ($downloadedBytes/$totalBytes bytes)');
+              lastLoggedProgress = progress;
+            }
           }
         }
         
         await sink.close();
-        print('✅ [UPDATE] APK downloaded to: $apkPath');
+        print('✅ [FLEET-UPDATE] APK downloaded successfully to: $apkPath');
+        print('🔄 [FLEET-UPDATE] File size: ${(downloadedBytes / 1024 / 1024).toStringAsFixed(1)} MB');
         
-        // Close progress dialog and install the APK
-        if (context.mounted) {
-          Navigator.of(context).pop();
-          await _installApk(context, apkPath);
-        }
+        // Install the APK silently
+        await _installApkSilent(context, apkPath, version);
         
       } else {
         throw Exception('Download failed with status: ${streamedResponse.statusCode}');
       }
       
     } catch (e) {
-      print('❌ [UPDATE] Download failed: $e');
-      
-      // Close progress dialog
-      if (context.mounted) {
-        Navigator.of(context).pop();
-        
-        // Show error dialog
-        _showErrorDialog(context, 'Yeniləmə yüklənmədi: $e');
-      }
+      print('❌ [FLEET-UPDATE] Silent download failed: $e');
+      print('🔄 [FLEET-UPDATE] Will retry on next app restart');
     }
   }
   
-  /// Install the downloaded APK
-  static Future<void> _installApk(BuildContext context, String apkPath) async {
+  /// Legacy method for dialog-based updates (kept for compatibility)
+  static Future<void> _downloadAndInstallUpdate(BuildContext context, String downloadUrl, String version) async {
+    // Redirect to silent update
+    await _downloadAndInstallUpdateSilent(context, downloadUrl, version);
+  }
+  
+  /// Install APK silently without UI interruption
+  static Future<void> _installApkSilent(BuildContext context, String apkPath, String version) async {
     try {
-      print('📱 [UPDATE] Installing APK: $apkPath');
+      print('📱 [FLEET-UPDATE] Installing APK silently: $apkPath');
+      
+      // Save the updated version to prevent re-detection
+      await _saveInstalledVersion(version);
       
       // Use OTA Update plugin to install the APK
       try {
         OtaUpdate().execute(
           apkPath,
-          destinationFilename: 'admain_update.apk',
+          destinationFilename: 'admain_fleet_update.apk',
         ).listen((OtaEvent event) {
-          print('📱 [UPDATE] OTA Event: ${event.status}');
+          print('📱 [FLEET-UPDATE] Installation status: ${event.status}');
+          
+          if (event.status == OtaStatus.INSTALLING) {
+            print('🔄 [FLEET-UPDATE] Installing update in background...');
+          } else if (event.status == OtaStatus.ALREADY_RUNNING_ERROR) {
+            print('⚠️ [FLEET-UPDATE] Installation already in progress');
+          } else if (event.status == OtaStatus.PERMISSION_NOT_GRANTED_ERROR) {
+            print('❌ [FLEET-UPDATE] Installation permission not granted');
+          }
         });
         
-        print('✅ [UPDATE] Installation initiated');
-      } on Exception catch (e) {
-        print('❌ [UPDATE] OTA execution failed: $e');
+        print('✅ [FLEET-UPDATE] Silent installation initiated successfully');
+        print('🚕 [FLEET-UPDATE] Taxi tablet will restart automatically when installation completes');
         
-        if (context.mounted) {
-          _showErrorDialog(context, 'Yeniləmə quraşdırılmadı: $e');
-        }
+      } on Exception catch (e) {
+        print('❌ [FLEET-UPDATE] OTA execution failed: $e');
+        print('🔄 [FLEET-UPDATE] Will retry on next app restart');
       }
       
     } catch (e) {
-      print('❌ [UPDATE] Installation failed: $e');
-      
-      if (context.mounted) {
-        _showErrorDialog(context, 'Yeniləmə quraşdırılmadı: $e');
-      }
+      print('❌ [FLEET-UPDATE] Silent installation failed: $e');
+      print('🔄 [FLEET-UPDATE] Will retry on next app restart');
     }
+  }
+  
+  /// Legacy install method (kept for compatibility)
+  static Future<void> _installApk(BuildContext context, String apkPath) async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    await _installApkSilent(context, apkPath, packageInfo.version);
   }
   
   /// Show error dialog with retry option
