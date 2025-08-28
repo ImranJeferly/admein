@@ -7,11 +7,14 @@ import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class UpdateService {
-  // Laravel backend API URL for APK version checking
+  // Laravel backend API URL for APK version checking (PRODUCTION)
   static const String _updateApiUrl = 'https://connect.admein.az/api/app-version';
   
-  // GitHub API URL for APK releases (fallback to commits for testing)
-  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/commits/main';
+  // GitHub API URL for APK releases (PRODUCTION - switch to releases when fixed)
+  static const String _githubApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/releases/latest';
+  
+  // GitHub commits API (TEMPORARY - for testing only)
+  static const String _githubCommitsApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/commits/main';
   
   /// Check for app updates on startup - optimized for taxi fleet
   static Future<void> checkForUpdates(BuildContext context) async {
@@ -24,9 +27,69 @@ class UpdateService {
       final currentVersion = packageInfo.version;
       print('🔄 [FLEET-UPDATE] Current version: $currentVersion');
       
-      // Call GitHub API
+      // PRODUCTION: Check GitHub Releases for new APK
       final response = await http.get(
         Uri.parse(_githubApiUrl),
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'AdmainApp-UpdateChecker',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        final releaseData = jsonDecode(response.body);
+        final latestVersion = (releaseData['tag_name'] as String).replaceFirst('v', '');
+        
+        print('🔄 [FLEET-UPDATE] Latest release version: $latestVersion');
+        print('🔄 [FLEET-UPDATE] Current version: $currentVersion');
+        
+        // Check if update is needed
+        if (_isNewerVersion(currentVersion, latestVersion)) {
+          // Find APK download URL
+          final assets = releaseData['assets'] as List<dynamic>;
+          String? apkDownloadUrl;
+          
+          for (final asset in assets) {
+            final assetName = asset['name'] as String;
+            if (assetName.toLowerCase().endsWith('.apk')) {
+              apkDownloadUrl = asset['browser_download_url'] as String;
+              break;
+            }
+          }
+          
+          if (apkDownloadUrl != null) {
+            print('🚕 [FLEET-UPDATE] PRODUCTION UPDATE DETECTED!');
+            print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> $latestVersion');
+            print('📥 [FLEET-UPDATE] APK URL: $apkDownloadUrl');
+            
+            if (context.mounted) {
+              // PRODUCTION: Start mandatory fleet update
+              _showFleetUpdateDialog(context, currentVersion, latestVersion, apkDownloadUrl);
+            }
+          } else {
+            print('⚠️ [FLEET-UPDATE] No APK found in release assets');
+          }
+        } else {
+          print('✅ [FLEET-UPDATE] Fleet is up to date');
+        }
+      } else if (response.statusCode == 404) {
+        print('⚠️ [FLEET-UPDATE] No releases found, falling back to commit detection...');
+        await _checkCommitsForTesting(context, currentVersion);
+      } else {
+        print('⚠️ [UPDATE] GitHub API returned status: ${response.statusCode}');
+      }
+      
+    } catch (e) {
+      print('❌ [FLEET-UPDATE] Error checking for fleet updates: $e');
+      // Continue app normally on error - don't block taxi operations
+    }
+  }
+  
+  /// Fallback method for testing when releases aren't available
+  static Future<void> _checkCommitsForTesting(BuildContext context, String currentVersion) async {
+    try {
+      final response = await http.get(
+        Uri.parse(_githubCommitsApiUrl),
         headers: {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'AdmainApp-UpdateChecker',
@@ -44,7 +107,7 @@ class UpdateService {
         // For testing: detect commits with "FLEET TEST" in the message
         if (commitMessage.toLowerCase().contains('fleet test')) {
           print('🚕 [FLEET-UPDATE] FLEET TEST UPDATE DETECTED!');
-          print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> v1.0.2 (Green Background)');
+          print('🚕 [FLEET-UPDATE] Update available: $currentVersion -> v1.0.2 (Testing)');
           
           if (context.mounted) {
             // Show fleet update dialog for testing (no actual download for now)
@@ -53,13 +116,9 @@ class UpdateService {
         } else {
           print('✅ [FLEET-UPDATE] Fleet is up to date (no test commits found)');
         }
-      } else {
-        print('⚠️ [UPDATE] GitHub API returned status: ${response.statusCode}');
       }
-      
     } catch (e) {
-      print('❌ [FLEET-UPDATE] Error checking for fleet updates: $e');
-      // Continue app normally on error - don't block taxi operations
+      print('❌ [FLEET-UPDATE] Error checking commits: $e');
     }
   }
   
