@@ -17,8 +17,15 @@ class UpdateService {
   // GitHub commits API (TEMPORARY - for testing only)
   static const String _githubCommitsApiUrl = 'https://api.github.com/repos/ImranJeferly/admein/commits/main';
   
-  /// Check for app updates on startup - optimized for taxi fleet
+  /// Check for app updates on startup - DISABLED for manual updates
   static Future<void> checkForUpdates(BuildContext context) async {
+    // AUTO-UPDATE DISABLED - Manual updates only
+    print('🚕 [FLEET-UPDATE] Auto-update system DISABLED');
+    print('🔄 [FLEET-UPDATE] Using manual update process');
+    return;
+    
+    // OLD AUTO-UPDATE CODE (DISABLED)
+    /*
     try {
       print('🔄 [FLEET-UPDATE] Checking for fleet updates...');
       print('🚕 [FLEET-UPDATE] Tablet ID: ${await _getDeviceId()}');
@@ -85,6 +92,7 @@ class UpdateService {
       print('❌ [FLEET-UPDATE] Error checking for fleet updates: $e');
       // Continue app normally on error - don't block taxi operations
     }
+    */
   }
   
   /// Fallback method for testing when releases aren't available

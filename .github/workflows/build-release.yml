@@ -1,9 +1,9 @@
-name: Build and Release APK
+name: Manual APK Build and Release
 
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.1
+      - 'v*'  # Manual trigger: git tag v1.0.x && git push origin v1.0.x
 
 permissions:
   contents: write
@@ -44,23 +44,22 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: Fleet Release ${{ github.ref_name }}
         body: |
-          🚕 **Taxi Fleet Auto-Update Release** 🚕
+          🚕 **Taxi Fleet Manual Release** 🚕
           
           **Version**: ${{ github.ref_name }}
           **Build Date**: ${{ steps.date.outputs.date }}
           
-          ### Changes:
-          - Purple background UI update
-          - Production-ready fleet auto-update system  
-          - Enhanced APK installation process
-          - Improved taxi tablet compatibility
+          ### Manual Deployment Instructions:
+          1. Download the APK file below
+          2. Manually install on taxi tablets
+          3. Auto-update system is DISABLED for manual control
           
-          ### Fleet Deployment:
+          ### Fleet Information:
           - **Target**: 200 taxi tablets
-          - **Auto-update**: Mandatory installation
-          - **Download size**: ~60MB
+          - **Update method**: Manual installation
+          - **APK size**: ~60MB
           
-          **📱 Download the APK below to update your taxi app automatically**
+          **📱 Download APK and manually install on tablets**
         files: |
           ./build/app/outputs/flutter-apk/app-release.apk
         fail_on_unmatched_files: true
