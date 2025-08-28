@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'  # Trigger on version tags like v1.0.1
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -30,27 +34,35 @@ jobs:
     - name: Build APK
       run: flutter build apk --release
       
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Get current date
+      id: date
+      run: echo "date=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+      
+    - name: Create Release and Upload APK
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
+        tag_name: ${{ github.ref_name }}
+        name: Fleet Release ${{ github.ref_name }}
         body: |
-          Auto-generated release for Admain app
-          - Updated features and bug fixes
-          - Download the APK below and install to update your app
-        draft: false
-        prerelease: false
-        
-    - name: Upload APK to Release
-      uses: actions/upload-release-asset@v1
+          🚕 **Taxi Fleet Auto-Update Release** 🚕
+          
+          **Version**: ${{ github.ref_name }}
+          **Build Date**: ${{ steps.date.outputs.date }}
+          
+          ### Changes:
+          - Purple background UI update
+          - Production-ready fleet auto-update system  
+          - Enhanced APK installation process
+          - Improved taxi tablet compatibility
+          
+          ### Fleet Deployment:
+          - **Target**: 200 taxi tablets
+          - **Auto-update**: Mandatory installation
+          - **Download size**: ~60MB
+          
+          **📱 Download the APK below to update your taxi app automatically**
+        files: |
+          ./build/app/outputs/flutter-apk/app-release.apk
+        fail_on_unmatched_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build/app/outputs/flutter-apk/app-release.apk
-        asset_name: admain-${{ github.ref_name }}.apk
-        asset_content_type: application/vnd.android.package-archive
