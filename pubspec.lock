@@ -212,10 +212,10 @@ packages:
     dependency: "direct main"
     description:
       name: ota_update
-      sha256: "8c47531b655f8fcf9961dc7758a933a9ccbcbe1c77a7ec52e5c5cfc2ec367ba7"
+      sha256: e0872d082b9498f543a9b51f25001e2c77e5e3963abdc36e7c849606a283d287
       url: "https://pub.dev"
     source: hosted
-    version: "6.0.0"
+    version: "7.0.2"
   package_info_plus:
     dependency: "direct main"
     description:
